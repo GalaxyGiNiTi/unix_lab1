@@ -1,0 +1,44 @@
+services:
+  # Брокер сообщений RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"     # AMQP порт
+      - "15672:15672"   # Веб-интерфейс управления
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Управляющий контейнер (Manager)
+  manager:
+    build: ./manager
+    container_name: manager
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: user
+      RABBITMQ_PASS: password
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8000:8000"     # HTTP API
+    restart: on-failure
+
+  # Контейнеры-работники (Workers) - горизонтально масштабируемые
+  worker:
+    build: ./worker
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: user
+      RABBITMQ_PASS: password
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    # Масштабирование: docker compose up --scale worker=5
